@@ -29,6 +29,8 @@ import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
 
+from m2g_embodied_ai.train.openpi.config import multi_agent_policy
+
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
 Filter: TypeAlias = nnx.filterlib.Filter
@@ -222,6 +224,55 @@ class SimpleDataConfig(DataConfigFactory):
             self.create_base_config(assets_dirs, model_config),
             data_transforms=self.data_transforms(model_config),
             model_transforms=self.model_transforms(model_config),
+        )
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotMultiAgentDataConfig(DataConfigFactory):
+    """
+    Data config for your LeRobot dataset:
+    - observation.images.main_camera_rgb
+    - observation.state
+    - action
+    - task (string prompt)
+    """
+
+    # 你的数据 action key 就叫 "action"
+    action_sequence_keys: Sequence[str] = ("action",)
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # dataset -> (训练/推理) 统一的 key 映射
+        # 注意：这里左边是“目标 key”(你后面 transforms 读的 key)，右边是“dataset key”
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation.images.main_camera_rgb": "observation.images.main_camera_rgb",
+                        "observation.state": "observation.state",
+                        "action": "action",
+                        "task": "task",
+                        "task_index": "task_index",
+                    }
+                )
+            ]
+        )
+
+        # 这里挂你刚写的 Inputs/Outputs
+        data_transforms = _transforms.Group(
+            inputs=[multi_agent_policy.MultiAgentInputs(model_type=model_config.model_type)],
+            outputs=[multi_agent_policy.MultiAgentOutputs()],
+        )
+
+        model_transforms = ModelTransformFactory()(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=self.action_sequence_keys,
+            # 你 task 已经是字符串 prompt，不需要从 task_index 自动生成 prompt
+            prompt_from_task=False,
         )
 
 
@@ -558,6 +609,27 @@ class TrainConfig:
 
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
+
+    TrainConfig(
+        name="pi05_multi_agent",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=53,        # 你的 action 维度
+            action_horizon=30,    # 对齐你 delta_indices = range(30)
+            discrete_state_input=False,
+        ),
+        data=LeRobotMultiAgentDataConfig(
+            repo_id="/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260120_the_first_step/lerobot/merged_T3_r1",  # 改成你的 LeRobot repo_id
+            base_config=DataConfig(
+                prompt_from_task=False,  # 你的 prompt 直接来自字段 task
+            ),
+            # 如果你希望复用某个 checkpoint 的 norm stats，可在这里配 assets
+            # assets=AssetsConfig(assets_dir="gs://.../assets", asset_id="..."),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        num_train_steps=30_000,
+        batch_size=32,
+    ),
     #
     # Inference Aloha configs.
     #
