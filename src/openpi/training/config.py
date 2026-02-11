@@ -607,6 +607,16 @@ class TrainConfig:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
 
+# ============================================================
+# Shared constants for your local setup (optional but recommended)
+# ============================================================
+_M2G_DATASET = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2/merged_T3_r1"
+_M2G_ASSETS_DIR = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/assets"
+_M2G_ASSET_ID = "merged_T3_r1"
+
+# Your local checkpoint that is "official pi0.5 base"
+_PI05_BASE_PT = "/data0/datasets/checkpoints/openpi/pi05"
+
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
 
@@ -619,17 +629,237 @@ _CONFIGS = [
             discrete_state_input=False,
         ),
         data=LeRobotMultiAgentDataConfig(
-            repo_id="/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260120_the_first_step/lerobot/merged_T3_r1",  # 改成你的 LeRobot repo_id
+            repo_id="/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2/merged_T3_r1",  # 改成你的 LeRobot repo_id
             base_config=DataConfig(
                 prompt_from_task=False,  # 你的 prompt 直接来自字段 task
             ),
+            # assets=AssetsConfig(assets_dir="/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/assets/merged_T3_r1"),
             # 如果你希望复用某个 checkpoint 的 norm stats，可在这里配 assets
             # assets=AssetsConfig(assets_dir="gs://.../assets", asset_id="..."),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=30_000,
-        batch_size=32,
+        # weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        weight_loader=weight_loaders.NoOpWeightLoader(),
+        pytorch_weight_path="/data0/datasets/checkpoints/openpi/pi05",
+        num_train_steps=10_000,
+        batch_size=8,
     ),
+
+    TrainConfig(
+        name="pi05_multi_agent_lora",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=53,
+            action_horizon=30,
+            discrete_state_input=False,
+
+            # ✅ 开 LoRA（视觉语言主干）
+            paligemma_variant="gemma_2b_lora",
+
+            # 如果你这版 openpi/pi0_config.py 里支持 action_expert_variant，
+            # 且 pi0.5 有 action expert（有些版本是有的），可以一起开：
+            # action_expert_variant="gemma_300m_lora",
+        ),
+
+        data=LeRobotMultiAgentDataConfig(
+            # 你的本地 LeRobot v2 数据集路径（OK）
+            repo_id="/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2/merged_T3_r1",
+
+            base_config=DataConfig(
+                prompt_from_task=False,   # 你 prompt 直接来自 task 字段
+            ),
+
+            # ✅ 这里改成正确的 assets_dir + asset_id
+            assets=AssetsConfig(
+                assets_dir="/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/assets",
+                asset_id="merged_T3_r1",
+            ),
+        ),
+
+        # ✅ LoRA：冻结主干，只训练 LoRA（必须）
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=53,
+            action_horizon=30,
+            discrete_state_input=False,
+            paligemma_variant="gemma_2b_lora",
+            # action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+
+        # ✅ LoRA：一般关 EMA
+        ema_decay=None,
+
+        # ✅ 用你本地的 pi0.5 base 权重初始化
+        # 这里不要再用 gs:// 的 CheckpointWeightLoader
+        weight_loader=weight_loaders.NoOpWeightLoader(),
+        pytorch_weight_path="/data0/datasets/checkpoints/openpi/pi05",
+
+        # 训练超参：建议先跑通再加
+        num_train_steps=10_000,
+
+        # ★ 强烈建议先用 1 或 2 跑通，LoRA 也更稳
+        batch_size=8,
+
+        # 你如果显卡很小，也可以考虑：
+        num_workers=0,
+    ),
+
+    # ============================================================
+    # 1) Full finetune: train EVERYTHING (vision backbone + action expert + heads)
+    # ============================================================
+    TrainConfig(
+        name="pi05_multi_agent_full_ft",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=53,
+            action_horizon=30,
+            discrete_state_input=False,
+
+            # ✅ Full finetune: use the *non-LoRA* variants
+            paligemma_variant="gemma_2b",
+            action_expert_variant="gemma_300m",
+        ),
+
+        data=LeRobotMultiAgentDataConfig(
+            repo_id=_M2G_DATASET,
+            base_config=DataConfig(
+                # Your dataset already has `task` string prompt
+                prompt_from_task=False,
+            ),
+            assets=AssetsConfig(
+                # ✅ assets_dir should be the parent directory; asset_id is the subfolder name
+                assets_dir=_M2G_ASSETS_DIR,
+                asset_id=_M2G_ASSET_ID,
+            ),
+        ),
+
+        # ✅ Full finetune: do NOT freeze anything
+        # (default is nnx.Nothing via TrainConfig, so you can omit freeze_filter)
+        # freeze_filter=nnx.Nothing,
+
+        # EMA can be kept on for full finetune (default 0.99), but you can tune it.
+        # ema_decay=0.99,
+
+        # Initialize from your local pi05 base
+        weight_loader=weight_loaders.NoOpWeightLoader(),
+        pytorch_weight_path=_PI05_BASE_PT,
+
+        num_train_steps=10_000,
+
+        # ⚠️ Full finetune is the most memory-hungry. If you OOM, lower this first.
+        batch_size=8,
+    ),
+
+
+    # ============================================================
+    # 2) Vision LoRA finetune: train ONLY vision backbone LoRA
+    #    - Vision backbone uses LoRA variant
+    #    - Action expert is kept non-LoRA and (effectively) frozen
+    #    - freeze_filter comes from Pi0Config.get_freeze_filter()
+    # ============================================================
+    TrainConfig(
+        name="pi05_multi_agent_vision_lora",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=53,
+            action_horizon=30,
+            discrete_state_input=False,
+
+            # ✅ Enable LoRA for the vision-language backbone
+            paligemma_variant="gemma_2b_lora",
+
+            # ✅ Keep action expert as non-LoRA
+            # This makes get_freeze_filter() freeze gemma params but NOT action expert params,
+            # and then unfreeze all ".lora." weights (so only LoRA weights train).
+            action_expert_variant="gemma_300m",
+        ),
+
+        data=LeRobotMultiAgentDataConfig(
+            repo_id=_M2G_DATASET,
+            base_config=DataConfig(prompt_from_task=False),
+            assets=AssetsConfig(
+                assets_dir=_M2G_ASSETS_DIR,
+                asset_id=_M2G_ASSET_ID,
+            ),
+        ),
+
+        # ✅ Critical: freeze everything except LoRA params (using existing built-in logic)
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=53,
+            action_horizon=30,
+            discrete_state_input=False,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m",
+        ).get_freeze_filter(),
+
+        # ✅ LoRA finetune typically disables EMA (common practice, saves memory too)
+        ema_decay=None,
+
+        weight_loader=weight_loaders.NoOpWeightLoader(),
+        pytorch_weight_path=_PI05_BASE_PT,
+
+        num_train_steps=10_000,
+
+        # ★ Even with LoRA, start small then scale up
+        batch_size=8,
+
+        # Often helps with stability + memory on some systems
+        num_workers=0,
+    ),
+
+
+    # ============================================================
+    # 3) Action Expert LoRA ONLY: do NOT train vision backbone at all
+    #    - Vision backbone stays non-LoRA (frozen implicitly by freeze_filter behavior)
+    #    - Action expert uses LoRA variant, so ONLY its LoRA weights train
+    # ============================================================
+    TrainConfig(
+        name="pi05_multi_agent_action_expert_lora_only",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=53,
+            action_horizon=30,
+            discrete_state_input=False,
+
+            # ✅ Keep vision backbone non-LoRA (you said you don't want to train it)
+            paligemma_variant="gemma_2b",
+
+            # ✅ Enable LoRA ONLY for action expert
+            action_expert_variant="gemma_300m_lora",
+        ),
+
+        data=LeRobotMultiAgentDataConfig(
+            repo_id=_M2G_DATASET,
+            base_config=DataConfig(prompt_from_task=False),
+            assets=AssetsConfig(
+                assets_dir=_M2G_ASSETS_DIR,
+                asset_id=_M2G_ASSET_ID,
+            ),
+        ),
+
+        # ✅ Critical: freeze action expert non-LoRA weights, unfreeze only ".lora." under action expert
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=53,
+            action_horizon=30,
+            discrete_state_input=False,
+            paligemma_variant="gemma_2b",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+
+        # ✅ LoRA finetune: usually disable EMA
+        ema_decay=None,
+
+        weight_loader=weight_loaders.NoOpWeightLoader(),
+        pytorch_weight_path=_PI05_BASE_PT,
+
+        num_train_steps=10_000,
+
+        # ★ This should be the most memory-friendly among the three.
+        batch_size=1,
+        num_workers=0,
+    ),
+
     #
     # Inference Aloha configs.
     #

@@ -27,6 +27,8 @@ import openpi.training.sharding as sharding
 import openpi.training.utils as training_utils
 import openpi.training.weight_loaders as _weight_loaders
 
+import swanlab
+
 
 def init_logging():
     """Custom logging format for better readability."""
@@ -192,6 +194,9 @@ def train_step(
 
 
 def main(config: _config.TrainConfig):
+
+    swanlab.init(project="openpi", experiment=config.exp_name, log_code=True)
+
     init_logging()
     logging.info(f"Running on: {platform.node()}")
 
