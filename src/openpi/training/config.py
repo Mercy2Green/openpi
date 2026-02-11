@@ -610,9 +610,9 @@ class TrainConfig:
 # ============================================================
 # Shared constants for your local setup (optional but recommended)
 # ============================================================
-_M2G_DATASET = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2/merged_T3_r1"
+_M2G_DATASET = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2_merged"
 _M2G_ASSETS_DIR = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/assets"
-_M2G_ASSET_ID = "merged_T3_r1"
+_M2G_ASSET_ID = "lerobot_v2_merged"
 
 # Your local checkpoint that is "official pi0.5 base"
 _PI05_BASE_PT = "/data0/datasets/checkpoints/openpi/pi05"
@@ -629,7 +629,7 @@ _CONFIGS = [
             discrete_state_input=False,
         ),
         data=LeRobotMultiAgentDataConfig(
-            repo_id="/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2/merged_T3_r1",  # 改成你的 LeRobot repo_id
+            repo_id="/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2/merged_T4_r2",  # 改成你的 LeRobot repo_id
             base_config=DataConfig(
                 prompt_from_task=False,  # 你的 prompt 直接来自字段 task
             ),
