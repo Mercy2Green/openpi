@@ -611,7 +611,7 @@ class TrainConfig:
 # Shared constants for your local setup (optional but recommended)
 # ============================================================
 _M2G_DATASET = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2_merged"
-_M2G_ASSETS_DIR = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/assets"
+_M2G_ASSETS_DIR = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/"
 _M2G_ASSET_ID = "lerobot_v2_merged"
 
 # Your local checkpoint that is "official pi0.5 base"
