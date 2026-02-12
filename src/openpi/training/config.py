@@ -610,12 +610,16 @@ class TrainConfig:
 # ============================================================
 # Shared constants for your local setup (optional but recommended)
 # ============================================================
-_M2G_DATASET = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/lerobot_v2_merged"
-_M2G_ASSETS_DIR = "/home/m2g/workspace/m2g_embodied_ai/datasets/m2g_multi_agent/dataset/20260209_new_version_lerobot/assets"
+_M2G_DATASET = "/data0/yurunze/datasets/multi_agent/lerobot_v2_merged"
+_M2G_ASSETS_DIR = "/data0/yurunze/datasets/multi_agent/"
 _M2G_ASSET_ID = "lerobot_v2_merged"
+
 
 # Your local checkpoint that is "official pi0.5 base"
 _PI05_BASE_PT = "/data0/datasets/checkpoints/openpi/pi05"
+
+# output ckpt dir
+_OUTPUT_CKPT_DIR = "/data0/datasets/checkpoints/openpi/output/"
 
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
@@ -815,6 +819,8 @@ _CONFIGS = [
     # ============================================================
     TrainConfig(
         name="pi05_multi_agent_action_expert_lora_only",
+        exp_name="pi05_multi_agent_action_expert_lora_only",
+        checkpoint_base_dir=_OUTPUT_CKPT_DIR,
         model=pi0_config.Pi0Config(
             pi05=True,
             action_dim=53,
@@ -856,8 +862,8 @@ _CONFIGS = [
         num_train_steps=10_000,
 
         # ★ This should be the most memory-friendly among the three.
-        batch_size=1,
-        num_workers=0,
+        batch_size=24,
+        num_workers=4,
     ),
 
     #
