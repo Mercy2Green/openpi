@@ -616,10 +616,10 @@ _M2G_ASSET_ID = "lerobot_v2_merged"
 
 
 # Your local checkpoint that is "official pi0.5 base"
-_PI05_BASE_PT = "/data0/datasets/checkpoints/openpi/pi05"
+_PI05_BASE_PT = "/data0/yurunze/checkpoints/openpi/pi05"
 
 # output ckpt dir
-_OUTPUT_CKPT_DIR = "/data0/datasets/checkpoints/openpi/output/"
+_OUTPUT_CKPT_DIR = "/data0/yurunze/checkpoints/openpi/output"
 
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
@@ -828,7 +828,7 @@ _CONFIGS = [
             discrete_state_input=False,
 
             # ✅ Keep vision backbone non-LoRA (you said you don't want to train it)
-            paligemma_variant="gemma_2b",
+            paligemma_variant="gemma_2b_lora",
 
             # ✅ Enable LoRA ONLY for action expert
             action_expert_variant="gemma_300m_lora",
@@ -849,7 +849,7 @@ _CONFIGS = [
             action_dim=53,
             action_horizon=30,
             discrete_state_input=False,
-            paligemma_variant="gemma_2b",
+            paligemma_variant="gemma_2b_lora",
             action_expert_variant="gemma_300m_lora",
         ).get_freeze_filter(),
 
@@ -859,11 +859,11 @@ _CONFIGS = [
         weight_loader=weight_loaders.NoOpWeightLoader(),
         pytorch_weight_path=_PI05_BASE_PT,
 
-        num_train_steps=10_000,
+        num_train_steps=20_000,
 
         # ★ This should be the most memory-friendly among the three.
         batch_size=24,
-        num_workers=4,
+        num_workers=8,
     ),
 
     #
